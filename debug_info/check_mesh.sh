@@ -4,8 +4,8 @@
 # Modified to only check specific directories: PalaceEdit4 and sims1-4
 
 # Use these variables to specify which directories to check
-PALACE_DIR="../PalaceEdit4"
-SIM_DIRS=("../sims1" "../sims2" "../sims3" "../sims4")
+PALACE_DIR="PalaceEdit4"
+SIM_DIRS=("sims1" "sims2" "sims3" "sims4")
 
 check_directory() {
     local dir=$1
