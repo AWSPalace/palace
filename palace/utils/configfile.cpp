@@ -1654,11 +1654,11 @@ void MagnetostaticSolverData::SetUp(json &solver)
 // Helper for converting string keys to enum for TransientSolverData::Type and
 // TransientSolverData::ExcitationType.
 PALACE_JSON_SERIALIZE_ENUM(TransientSolverData::Type,
-                           {{TransientSolverData::Type::DEFAULT, "Default"},
-                            {TransientSolverData::Type::GEN_ALPHA, "GeneralizedAlpha"},
+                           {{TransientSolverData::Type::GEN_ALPHA, "GeneralizedAlpha"},
                             {TransientSolverData::Type::RUNGE_KUTTA, "RungeKutta"},
                             {TransientSolverData::Type::CVODE, "CVODE"},
-                            {TransientSolverData::Type::ARKODE, "ARKODE"}})
+                            {TransientSolverData::Type::ARKODE, "ARKODE"},
+                            {TransientSolverData::Type::DEFAULT, "Default"}})
 PALACE_JSON_SERIALIZE_ENUM(
     TransientSolverData::ExcitationType,
     {{TransientSolverData::ExcitationType::SINUSOIDAL, "Sinusoidal"},

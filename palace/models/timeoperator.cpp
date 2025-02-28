@@ -52,7 +52,7 @@ public:
     : mfem::TimeDependentOperator(2 * space_op.GetNDSpace().GetTrueVSize() +
                                       space_op.GetRTSpace().GetTrueVSize(),
                                   t0, type),
-      comm(space_op.GetComm()), dJ_coef(dJ_coef),
+      comm(space_op.GetComm()), dJ_coef(std::move(dJ_coef)),
       size_E(space_op.GetNDSpace().GetTrueVSize()),
       size_B(space_op.GetRTSpace().GetTrueVSize()), Curl(space_op.GetCurlMatrix())
   {
@@ -103,7 +103,7 @@ public:
     }
   }
 
-  // Form the RHS for the first-order ODE system
+  // Form the RHS for the first-order ODE system.
   void FormRHS(const Vector &u, Vector &rhs) const
   {
     Vector u1, u2, u3, rhs1, rhs2, rhs3;
@@ -175,8 +175,10 @@ public:
 
   void ImplicitSolve(double dt, const Vector &u, Vector &k) override
   {
-    // Solve: M k = f(u + dt k, t)
-    // Use block elimination to avoid solving a 3n x 3n linear system
+
+    // Solve: M k = f(u + dt k, t).
+    // Use block elimination to avoid solving a 3n x 3n linear system.
+    
     if (!kspA || dt != dt_)
     {
       // Configure the linear solver, including the system matrix and also the matrix
@@ -218,26 +220,26 @@ public:
 
   void ExplicitMult(const Vector &u, Vector &v) const override { Mult(u, v); }
 
-  // Setup A = M - gamma J = M + gamma C + gamma^2 K
+  // Setup A = M - gamma J = M + gamma C + gamma^2 K.
   int SUNImplicitSetup(const Vector &y, const Vector &fy, int jok, int *jcur,
                        double gamma) override
   {
-    // Update Jacobian matrix
+    // Update Jacobian matrix.
     if (!kspA || gamma != saved_gamma)
     {
       ConfigureLinearSolver(gamma);
     }
 
-    // Indicate Jacobian was updated
+    // Indicate Jacobian was updated.
     *jcur = 1;
 
-    // Save gamma for use in solve
+    // Save gamma for use in solve.
     saved_gamma = gamma;
 
     return 0;
   }
 
-  // Solve (Mass - dt Jacobian) x = Mass b
+  // Solve (Mass - dt Jacobian) x = Mass b.
   int SUNImplicitSolve(const Vector &b, Vector &x, double tol) override
   {
     Vector b1, b2, b3, x1, x2, x3, RHS1;
@@ -282,7 +284,6 @@ TimeOperator::TimeOperator(const IoData &iodata, SpaceOperator &space_op,
   : rel_tol(iodata.solver.transient.rel_tol), abs_tol(iodata.solver.transient.abs_tol),
     order(iodata.solver.transient.order)
 {
-
   // Get sizes.
   int size_E = space_op.GetNDSpace().GetTrueVSize();
   int size_B = space_op.GetRTSpace().GetTrueVSize();
@@ -328,11 +329,11 @@ TimeOperator::TimeOperator(const IoData &iodata, SpaceOperator &space_op,
         // Use implicit setup/solve defined in SUNImplicit*.
         arkode->UseMFEMLinearSolver();
         // Implicit solve is linear and J is not time-dependent.
-        ARKodeSetLinear(arkode->GetMem(), 0);
+        ARKStepSetLinear(arkode->GetMem(), 0);
         // Relative and absolute tolerances.
         arkode->SetSStolerances(rel_tol, abs_tol);
         // Set the order of the RK scheme.
-        ARKodeSetOrder(arkode->GetMem(), order);
+        ARKStepSetOrder(arkode->GetMem(), order);
         // Set the ODE solver to ARKODE.
         ode = std::move(arkode);
 #else
@@ -344,6 +345,7 @@ TimeOperator::TimeOperator(const IoData &iodata, SpaceOperator &space_op,
     case config::TransientSolverData::Type::CVODE:
       {
 #if defined(MFEM_USE_SUNDIALS)
+
         // SUNDIALS CVODE solver.
         std::unique_ptr<mfem::CVODESolver> cvode;
         cvode = std::make_unique<mfem::CVODESolver>(space_op.GetComm(), CV_BDF);
@@ -377,6 +379,32 @@ const KspSolver &TimeOperator::GetLinearSolver() const
   return *first_order.kspA;
 }
 
+double TimeOperator::GetMaxTimeStep() const
+{
+  const auto &first_order = dynamic_cast<const TimeDependentFirstOrderOperator &>(*op);
+  MPI_Comm comm = first_order.comm;
+  const Operator &M = *first_order.M;
+  const Operator &K = *first_order.K;
+
+  // Solver for M⁻¹.
+  constexpr double lin_tol = 1.0e-9;
+  constexpr int max_lin_it = 10000;
+  CgSolver<Operator> pcg(comm, 0);
+  pcg.SetRelTol(lin_tol);
+  pcg.SetMaxIter(max_lin_it);
+  pcg.SetOperator(M);
+  JacobiSmoother<Operator> jac(comm);
+  jac.SetOperator(M);
+  pcg.SetPreconditioner(jac);
+
+  // Power iteration to estimate largest eigenvalue of undamped system matrix M⁻¹ K (can use
+  // Hermitian eigenvalue solver as M, K are SPD).
+  ProductOperator op(pcg, K);
+  double lam = linalg::SpectralNorm(comm, op, true);
+  MFEM_VERIFY(lam > 0.0, "Error during power iteration, λ = " << lam << "!");
+  return 2.0 / std::sqrt(lam);
+}
+
 void TimeOperator::Init()
 {
   // Always use zero initial conditions.
@@ -405,7 +433,7 @@ void TimeOperator::PrintStats()
                                &nfe_evals, &nfi_evals, &nlinsetups, &netfails);
 
     long int nniters;
-    ARKodeGetNumNonlinSolvIters(arkode->GetMem(), &nniters);
+    ARKStepGetNumNonlinSolvIters(arkode->GetMem(), &nniters);
 
     Mpi::Print("\nARKODE time-stepper statistics\n");
     Mpi::Print(" Stability-limited steps: {:d}\n", expsteps);
