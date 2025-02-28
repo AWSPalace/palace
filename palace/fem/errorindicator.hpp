@@ -26,6 +26,14 @@ protected:
   // Number of samples.
   int n;
 
+  // CUSTOM CONVERGENCE
+  int consecutive_converged{0};
+  int required_consecutive{3}; 
+  double last_error{std::numeric_limits<double>::max()};
+  double global_tol{1e-2};
+  double relative_tol{1e-3};
+  double jj_weight{3.0};
+
 public:
   ErrorIndicator(Vector &&local) : local(std::move(local)), n(1)
   {
@@ -34,7 +42,8 @@ public:
   ErrorIndicator() : n(0) { local.UseDevice(true); }
 
   // Add an indicator to the running total.
-  void AddIndicator(const Vector &indicator);
+  // CUSTOM CONVERGENCE REMOVE
+  //void AddIndicator(const Vector &indicator);
 
   // Return the local error indicator.
   const auto &Local() const { return local; }
@@ -60,6 +69,19 @@ public:
 
   // Return the mean local error indicator.
   auto Mean(MPI_Comm comm) const { return linalg::Mean(comm, local); }
+  // CUSTOM CONVERGENCE
+  void SetConvergenceParams(double tol, double rel_tol, int required_consec) {
+    global_tol = tol;
+    relative_tol = rel_tol;
+    required_consecutive = required_consec;
+  }
+
+  bool HasConverged() const {
+    return consecutive_converged >= required_consecutive;
+  }
+
+  // Modify signature of existing AddIndicator:
+  void AddIndicator(const Vector &indicator, bool is_jj = false);
 };
 
 }  // namespace palace

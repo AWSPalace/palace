@@ -175,8 +175,10 @@ public:
 
   void ImplicitSolve(double dt, const Vector &u, Vector &k) override
   {
+
     // Solve: M k = f(u + dt k, t).
     // Use block elimination to avoid solving a 3n x 3n linear system.
+    
     if (!kspA || dt != dt_)
     {
       // Configure the linear solver, including the system matrix and also the matrix
@@ -343,6 +345,7 @@ TimeOperator::TimeOperator(const IoData &iodata, SpaceOperator &space_op,
     case config::TransientSolverData::Type::CVODE:
       {
 #if defined(MFEM_USE_SUNDIALS)
+
         // SUNDIALS CVODE solver.
         std::unique_ptr<mfem::CVODESolver> cvode;
         cvode = std::make_unique<mfem::CVODESolver>(space_op.GetComm(), CV_BDF);

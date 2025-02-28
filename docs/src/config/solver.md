@@ -322,6 +322,7 @@ under the directory specified by
     "MGSmoothOrder": <int>,
     "PCMatReal": <bool>,
     "PCMatShifted": <bool>,
+    "ComplexCoarseSolve": <bool>,
     "PCSide": <string>,
     "DivFreeTol": <float>,
     "DivFreeMaxIts": <float>,
@@ -420,6 +421,9 @@ domain problems using a positive definite approximation of the system matrix by 
 the sign for the mass matrix contribution, which can help performance at high frequencies
 (relative to the lowest nonzero eigenfrequencies of the model).
 
+`"ComplexCoarseSolve" [false]` : When set to `true`, the coarse-level solver uses the true
+complex-valued system matrix. When set to `false`, the real-valued approximation is used.
+
 `"PCSide" ["Default"]` :  Side for preconditioning. Not all options are available for all
 iterative solver choices, and the default choice depends on the iterative solver used.
 
@@ -428,10 +432,22 @@ iterative solver choices, and the default choice depends on the iterative solver
   - `"Default"`
 
 `"DivFreeTol" [1.0e-12]` :  Relative tolerance for divergence-free cleaning used in the
-eigenmode simulation type.
+eigenmode simulation type. Ignored if non-zero Floquet wave vector is specified in
+[`config["Boundaries"]["Periodic"]["FloquetWaveVector"]`](boundaries.md##boundaries%5B%%22Periodic%22%5D%22FloquetWaveVector%22%5D)
+or
+[`config["Boundaries"]["FloquetWaveVector"]`](boundaries.md##boundaries%5B%%22FloquetWaveVector%22%5D),
+or non-zero
+[`config["Domains"]["Materials"]["LondonDepth"]`](domains.md##domains%5B%22Materials%22%5D%5B%22LondonDepth%22%5D)
+is specified.
 
 `"DivFreeMaxIts" [1000]` :  Maximum number of iterations for divergence-free cleaning use in
-the eigenmode simulation type.
+the eigenmode simulation type. Ignored if non-zero Floquet wave vector is specified in
+[`config["Boundaries"]["Periodic"]["FloquetWaveVector"]`](boundaries.md##boundaries%5B%%22Periodic%22%5D%22FloquetWaveVector%22%5D)
+or
+[`config["Boundaries"]["FloquetWaveVector"]`](boundaries.md##boundaries%5B%%22FloquetWaveVector%22%5D),
+or non-zero
+[`config["Domains"]["Materials"]["LondonDepth"]`](domains.md##domains%5B%22Materials%22%5D%5B%22LondonDepth%22%5D)
+is specified.
 
 `"EstimatorTol" [1.0e-6]` :  Relative tolerance for flux projection used in the
 error estimate calculation.

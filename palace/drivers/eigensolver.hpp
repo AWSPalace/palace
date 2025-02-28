@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 #include "drivers/basesolver.hpp"
+#include "models/lumpedportoperator.hpp"
 
 namespace palace
 {
@@ -42,6 +43,9 @@ private:
 
 public:
   using BaseSolver::BaseSolver;
+  // CUSTOM CONVERGENCE
+  // This method will be implemented in eigensolver.cpp since it needs access to space_op
+  bool HasJunctionInDomain(int elem_idx) const;
 };
 
 }  // namespace palace

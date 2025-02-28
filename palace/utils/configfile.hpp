@@ -470,17 +470,32 @@ public:
 struct PeriodicData
 {
 public:
-  // Vector defining the direction and distance for this periodic boundary condition.
-  std::array<double, 3> translation = {0.0, 0.0, 0.0};
+  // Vector defining the affine transformation matrix for this periodic boundary condition.
+  std::array<double, 16> affine_transform = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
   // List of boundary donor attributes for this periodic boundary condition.
   std::vector<int> donor_attributes = {};
+
   // List of boundary receiver attributes for this periodic boundary condition.
   std::vector<int> receiver_attributes = {};
+
+  // Floquet/Bloch wavevector specifying the phase delay in the X/Y/Z directions.
+  std::array<double, 3> wave_vector = {0.0, 0.0, 0.0};
 };
 
 struct PeriodicBoundaryData : public internal::DataVector<PeriodicData>
 {
 public:
+  void SetUp(json &boundaries);
+};
+
+struct FloquetData
+{
+public:
+  // Floquet/Bloch wavevector specifying the phase delay in the X/Y/Z directions.
+  std::array<double, 3> wave_vector = {0.0, 0.0, 0.0};
+
   void SetUp(json &boundaries);
 };
 
@@ -639,6 +654,7 @@ public:
   WavePortBoundaryData waveport = {};
   SurfaceCurrentBoundaryData current = {};
   PeriodicBoundaryData periodic = {};
+  FloquetData floquet;
   BoundaryPostData postpro = {};
 
   void SetUp(json &config);
@@ -872,6 +888,10 @@ public:
   // For frequency domain applications, precondition linear systems with a shifted matrix
   // (makes the preconditoner matrix SPD).
   int pc_mat_shifted = -1;
+
+  // For frequency domain applications, use the complex-valued system matrix in the sparse
+  // direct solver.
+  bool complex_coarse_solve = false;
 
   // Choose left or right preconditioning.
   enum class SideType

@@ -29,6 +29,17 @@ public:
   virtual double GetGeometryLength() const = 0;
   virtual double GetGeometryWidth() const = 0;
 
+  // CUSTOM CONVERGENCE
+  // Check if element with given index is part of this lumped element
+  bool ContainsElement(int elem_idx) const {
+    for (int i = 0; i < attr_list.Size(); i++) {
+      if (attr_list[i] == elem_idx) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   virtual std::unique_ptr<mfem::VectorCoefficient>
   GetModeCoefficient(double coeff = 1.0) const = 0;
 };

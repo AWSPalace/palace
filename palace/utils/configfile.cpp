@@ -1035,6 +1035,25 @@ void LumpedPortBoundaryData::SetUp(json &boundaries)
   }
 }
 
+void FloquetData::SetUp(json &boundaries)
+{
+  auto floquet = boundaries.find("FloquetWaveVector");
+  if (floquet == boundaries.end())
+  {
+    return;
+  }
+
+  MFEM_VERIFY(floquet->is_array(),
+              "\"FloquetWaveVector\" should specify an array in the configuration file!");
+  wave_vector = floquet->get<std::array<double, 3>>();
+
+  // Debug
+  if constexpr (JSON_DEBUG)
+  {
+    std::cout << "FloquetWaveVector: " << wave_vector << '\n';
+  }
+}
+
 void PeriodicBoundaryData::SetUp(json &boundaries)
 {
   auto periodic = boundaries.find("Periodic");
@@ -1052,19 +1071,46 @@ void PeriodicBoundaryData::SetUp(json &boundaries)
     MFEM_VERIFY(it->find("ReceiverAttributes") != it->end(),
                 "Missing \"ReceiverAttributes\" list for \"Periodic\" boundary in the "
                 "configuration file!");
-    MFEM_VERIFY(it->find("Translation") != it->end(),
-                "Missing \"Translation\" vector for \"Periodic\" boundary in the "
-                "configuration file!");
     PeriodicData &data = vecdata.emplace_back();
     data.donor_attributes = it->at("DonorAttributes").get<std::vector<int>>();  // Required
     data.receiver_attributes =
-        it->at("ReceiverAttributes").get<std::vector<int>>();               // Required
-    data.translation = it->at("Translation").get<std::array<double, 3>>();  // Required
+        it->at("ReceiverAttributes").get<std::vector<int>>();  // Required
+    auto translation = it->find("Translation");
+    if (translation != it->end())
+    {
+      MFEM_VERIFY(translation->is_array(),
+                  "\"Translation\" should specify an array in the configuration file!");
+      std::array<double, 3> translation_array = translation->get<std::array<double, 3>>();
+      for (int i = 0; i < 3; i++)
+      {
+        data.affine_transform[i * 4 + i] = 1.0;
+        data.affine_transform[i * 4 + 3] = translation_array[i];
+      }
+      data.affine_transform[3 * 4 + 3] = 1.0;
+    }
+    auto transformation = it->find("AffineTransformation");
+    if (transformation != it->end())
+    {
+      MFEM_VERIFY(
+          transformation->is_array(),
+          "\"AffineTransformation\" should specify an array in the configuration file!");
+      data.affine_transform = transformation->get<std::array<double, 16>>();
+    }
+    auto floquet = it->find("FloquetWaveVector");
+    if (floquet != it->end())
+    {
+      MFEM_VERIFY(
+          floquet->is_array(),
+          "\"FloquetWaveVector\" should specify an array in the configuration file!");
+      data.wave_vector = floquet->get<std::array<double, 3>>();
+    }
 
     // Cleanup
     it->erase("DonorAttributes");
     it->erase("ReceiverAttributes");
     it->erase("Translation");
+    it->erase("AffineTransformation");
+    it->erase("FloquetWaveVector");
     MFEM_VERIFY(it->empty(),
                 "Found an unsupported configuration file keyword under \"Periodic\"!\n"
                     << it->dump(2));
@@ -1074,7 +1120,8 @@ void PeriodicBoundaryData::SetUp(json &boundaries)
     {
       std::cout << "DonorAttributes: " << data.donor_attributes << '\n';
       std::cout << "ReceiverAttributes: " << data.receiver_attributes << '\n';
-      std::cout << "Translation: " << data.translation << '\n';
+      std::cout << "AffineTransformation: " << data.affine_transform << '\n';
+      std::cout << "FloquetWaveVector: " << data.wave_vector << '\n';
     }
   }
 }
@@ -1392,6 +1439,7 @@ void BoundaryData::SetUp(json &config)
   impedance.SetUp(*boundaries);
   lumpedport.SetUp(*boundaries);
   periodic.SetUp(*boundaries);
+  floquet.SetUp(*boundaries);
   waveport.SetUp(*boundaries);
   current.SetUp(*boundaries);
   postpro.SetUp(*boundaries);
@@ -1441,6 +1489,7 @@ void BoundaryData::SetUp(json &config)
   boundaries->erase("Impedance");
   boundaries->erase("LumpedPort");
   boundaries->erase("Periodic");
+  boundaries->erase("FloquetWaveVector");
   boundaries->erase("WavePort");
   boundaries->erase("SurfaceCurrent");
   boundaries->erase("Ground");
@@ -1779,6 +1828,7 @@ void LinearSolverData::SetUp(json &solver)
   // Preconditioner-specific options.
   pc_mat_real = linear->value("PCMatReal", pc_mat_real);
   pc_mat_shifted = linear->value("PCMatShifted", pc_mat_shifted);
+  complex_coarse_solve = linear->value("ComplexCoarseSolve", complex_coarse_solve);
   pc_side_type = linear->value("PCSide", pc_side_type);
   sym_fact_type = linear->value("ColumnOrdering", sym_fact_type);
   strumpack_compression_type =
@@ -1821,6 +1871,7 @@ void LinearSolverData::SetUp(json &solver)
 
   linear->erase("PCMatReal");
   linear->erase("PCMatShifted");
+  linear->erase("ComplexCoarseSolve");
   linear->erase("PCSide");
   linear->erase("ColumnOrdering");
   linear->erase("STRUMPACKCompressionType");
@@ -1865,6 +1916,7 @@ void LinearSolverData::SetUp(json &solver)
 
     std::cout << "PCMatReal: " << pc_mat_real << '\n';
     std::cout << "PCMatShifted: " << pc_mat_shifted << '\n';
+    std::cout << "ComplexCoarseSolve: " << complex_coarse_solve << '\n';
     std::cout << "PCSide: " << pc_side_type << '\n';
     std::cout << "ColumnOrdering: " << sym_fact_type << '\n';
     std::cout << "STRUMPACKCompressionType: " << strumpack_compression_type << '\n';

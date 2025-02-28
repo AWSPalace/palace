@@ -495,7 +495,7 @@ TimeDependentFluxErrorEstimator<VecType>::TimeDependentFluxErrorEstimator(
 
 template <typename VecType>
 void TimeDependentFluxErrorEstimator<VecType>::AddErrorIndicator(
-    const VecType &E, const VecType &B, double Et, ErrorIndicator &indicator) const
+    const VecType &E, const VecType &B, double Et, ErrorIndicator &indicator, bool is_jj) const
 {
   auto grad_estimates =
       ComputeErrorEstimates(E, grad_estimator.E_gf, grad_estimator.D, grad_estimator.D_gf,
@@ -508,7 +508,9 @@ void TimeDependentFluxErrorEstimator<VecType>::AddErrorIndicator(
   grad_estimates += curl_estimates;  // Sum of squares
   linalg::Sqrt(grad_estimates,
                (Et > 0.0) ? 0.5 / Et : 1.0);  // Correct factor of 1/2 in energy
-  indicator.AddIndicator(grad_estimates);
+  
+  // CUSTOM CONVERGENCE: Pass is_jj flag to indicator
+  indicator.AddIndicator(grad_estimates, is_jj);
 }
 
 template class FluxProjector<Vector>;
