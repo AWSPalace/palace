@@ -270,6 +270,13 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
       iodata.solver.linear.estimator_mg);
   ErrorIndicator indicator;
 
+  // CUSTOM CONVERGENCE
+  indicator.SetConvergenceParams(
+    iodata.solver.eigenmode.tol,     // Global tolerance
+    iodata.solver.eigenmode.tol/10,  // Relative tolerance 
+    3                                // Required consecutive converges
+  );
+
   // Eigenvalue problem solve.
   BlockTimer bt1(Timer::EPS);
   Mpi::Print("\n");
@@ -331,10 +338,18 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
     const double E_elec = post_op.GetEFieldEnergy();
     const double E_mag = post_op.GetHFieldEnergy();
 
+    // CUSTOM CONVERGENCE MODIFY
     // Calculate and record the error indicators.
     if (i < iodata.solver.eigenmode.n)
     {
-      estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator);
+      bool is_jj = HasJunctionInDomain(i);
+      estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator, is_jj);
+    }
+    // CUSTOM CONVERGENCE
+    // Add error indicators with JJ flag
+      // Check EPR convergence
+    if (!indicator.HasConverged()) {
+      continue; // Need more iterations 
     }
 
     // Postprocess the mode.

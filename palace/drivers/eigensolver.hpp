@@ -42,6 +42,17 @@ private:
 
 public:
   using BaseSolver::BaseSolver;
+  // CUSTOM CONVERGENCE
+  bool EigenSolver::HasJunctionInDomain(int elem_idx) const {
+  // Check if element is part of JJ region using lumped port operator
+  for (const auto& [idx, port] : space_op.GetLumpedPortOp()) {
+    if (port.GetType() == LumpedPortData::Type::JOSEPHSON &&
+        port.ContainsElement(elem_idx)) {
+      return true;
+    }
+  }
+  return false;
+}
 };
 
 }  // namespace palace

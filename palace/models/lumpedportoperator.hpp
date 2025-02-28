@@ -121,6 +121,20 @@ public:
   // the complex one).
   void AddExcitationBdrCoefficients(SumVectorCoefficient &fb);
 };
+// CUSTOM CONVERGENCE 
+class LumpedPortOperator {
+public:
+  // Add method to detect JJ regions
+  bool HasJunctionAt(int elem_idx) const {
+    for (const auto& [idx, port] : ports) {
+      if (port.GetType() == PortType::JOSEPHSON &&
+          port.ContainsElement(elem_idx)) {
+        return true;
+      }
+    }
+    return false;
+  }
+};
 
 }  // namespace palace
 

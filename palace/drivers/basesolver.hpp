@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <fmt/os.h>
+#include <set>
 
 namespace palace
 {
@@ -18,6 +19,14 @@ class Mesh;
 class IoData;
 class PostOperator;
 class Timer;
+
+// // CUSTOM CONVERGENCE
+// struct JJConvergenceCriteria {
+//     double jj_refine_weight = 10.0;
+//     int min_consecutive_converged = 3;
+//     double jj_field_tol = 1e-6;
+//     std::set<int> jj_materials{60};  // JJ layer from SQUADDS
+// };
 
 //
 // Base driver class for all simulation types.
