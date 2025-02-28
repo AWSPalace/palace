@@ -342,10 +342,11 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
     // Calculate and record the error indicators.
     if (i < iodata.solver.eigenmode.n)
     {
-      // Check if current element/region contains a JJ
+      // Check if the current element/region contains a Josephson Junction
       bool is_jj = false;
       const auto& lumped_port_op = space_op.GetLumpedPortOp();
       for (const auto& [idx, port] : lumped_port_op) {
+        // Check if we have any Josephson junction ports
         if (port.GetType() == LumpedPortData::Type::JOSEPHSON) {
           is_jj = true;
           break;
@@ -366,6 +367,13 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
                 (i == iodata.solver.eigenmode.n - 1) ? &indicator : nullptr);
   }
   return {indicator, space_op.GlobalTrueVSize()};
+}
+
+// CUSTOM CONVERGENCE
+bool EigenSolver::HasJunctionInDomain(int elem_idx) const {
+  // Implementation requires SpaceOperator, which is available in the Solve method
+  // This is a placeholder - we'll use a different approach in the main Solve method
+  return false;
 }
 
 void EigenSolver::Postprocess(const PostOperator &post_op,

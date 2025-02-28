@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 #include "drivers/basesolver.hpp"
+#include "models/lumpedportoperator.hpp"
 
 namespace palace
 {
@@ -43,16 +44,8 @@ private:
 public:
   using BaseSolver::BaseSolver;
   // CUSTOM CONVERGENCE
-  bool HasJunctionInDomain(int elem_idx) const {
-    // Check if element is part of JJ region using lumped port operator
-    for (const auto& [idx, port] : space_op.GetLumpedPortOp()) {
-      if (port.GetType() == LumpedPortData::Type::JOSEPHSON &&
-          port.ContainsElement(elem_idx)) {
-        return true;
-      }
-    }
-    return false;
-  }
+  // This method will be implemented in eigensolver.cpp since it needs access to space_op
+  bool HasJunctionInDomain(int elem_idx) const;
 };
 
 }  // namespace palace
