@@ -75,25 +75,29 @@ void ErrorIndicator::AddIndicator(const Vector &indicator, bool is_jj) {
   }
 
   // Higher weight for JJ regions
-  const double weight = is_jj ? 3.0 : 1.0;
+  const double weight = is_jj ? jj_weight : 1.0;
 
   const bool use_dev = local.UseDevice() || indicator.UseDevice();
   const int N = local.Size();
-  const int Dn = n;
   const auto *DI = indicator.Read();
-  auto *DL = local.ReadWrite();
-
-  // Calculate MSE
+  const auto *DL = local.Read();
+  
+  // Calculate MSE without modifying local yet
+  Vector diff_sq(N);
+  diff_sq.UseDevice(use_dev);
+  auto *DS = diff_sq.Write();
+  
   mfem::forall_switch(
     use_dev, N, [=] MFEM_HOST_DEVICE(int i) {
-      // Square of difference for MSE
+      // Square of difference for MSE with weighting
       const double diff = (DI[i] - DL[i]) * weight;
-      DL[i] = diff * diff;
+      DS[i] = diff * diff;
     });
 
   // Sum up MSE and divide by number of elements
-  double current_error = linalg::Sum(GetComm(), local) / N;
+  double current_error = linalg::Sum(MPI_COMM_WORLD, diff_sq) / N;
 
+  // Check for convergence criteria
   if (current_error < global_tol && 
       std::abs(current_error - last_error)/std::abs(last_error) < relative_tol) {
     consecutive_converged++;
@@ -101,6 +105,10 @@ void ErrorIndicator::AddIndicator(const Vector &indicator, bool is_jj) {
     consecutive_converged = 0;
   }
   
+  // Store the current indicator for next comparison
+  local = indicator;
+  
+  // Update tracking variables
   last_error = current_error;
   n++;
 }

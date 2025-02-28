@@ -138,8 +138,9 @@ public:
   // Compute elemental error indicators given the electric field and magnetic flux density
   // as a vectors of true dofs, and fold into an existing indicator. The indicators are
   // nondimensionalized using the total field energy.
+  // CUSTOM CONVERGENCE: Added is_jj parameter for Josephson Junction weighted convergence
   void AddErrorIndicator(const VecType &E, const VecType &B, double Et,
-                         ErrorIndicator &indicator) const;
+                         ErrorIndicator &indicator, bool is_jj = false) const;
 };
 
 }  // namespace palace

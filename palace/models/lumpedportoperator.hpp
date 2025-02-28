@@ -33,6 +33,14 @@ struct LumpedPortData;
 class LumpedPortData
 {
 public:
+  // CUSTOM CONVERGENCE
+  // Port types enum
+  enum class Type {
+    STANDARD,
+    JOSEPHSON,
+    COAXIAL
+  };
+
   // Reference to material property data (not owned).
   const MaterialOperator &mat_op;
 
@@ -43,6 +51,9 @@ public:
   // Lumped port properties.
   double R, L, C;
   bool excitation, active;
+  
+  // CUSTOM CONVERGENCE
+  Type port_type = Type::STANDARD;
 
 private:
   // Linear forms for postprocessing integrated quantities on the port.
@@ -75,6 +86,18 @@ public:
   std::complex<double> GetPower(GridFunction &E, GridFunction &B) const;
   std::complex<double> GetSParameter(GridFunction &E) const;
   std::complex<double> GetVoltage(GridFunction &E) const;
+  
+  // CUSTOM CONVERGENCE
+  Type GetType() const { return port_type; }
+  
+  bool ContainsElement(int elem_idx) const {
+    for (const auto& elem : elems) {
+      if (elem->ContainsElement(elem_idx)) {
+        return true;
+      }
+    }
+    return false;
+  }
 };
 
 //
@@ -120,14 +143,12 @@ public:
   // excited port boundaries, -U_inc/(iω) for the real version (versus the full -U_inc for
   // the complex one).
   void AddExcitationBdrCoefficients(SumVectorCoefficient &fb);
-};
-// CUSTOM CONVERGENCE 
-class LumpedPortOperator {
-public:
+  
+  // CUSTOM CONVERGENCE 
   // Add method to detect JJ regions
   bool HasJunctionAt(int elem_idx) const {
     for (const auto& [idx, port] : ports) {
-      if (port.GetType() == PortType::JOSEPHSON &&
+      if (port.GetType() == LumpedPortData::Type::JOSEPHSON &&
           port.ContainsElement(elem_idx)) {
         return true;
       }

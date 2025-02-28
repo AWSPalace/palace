@@ -342,12 +342,20 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
     // Calculate and record the error indicators.
     if (i < iodata.solver.eigenmode.n)
     {
-      bool is_jj = HasJunctionInDomain(i);
+      // Check if current element/region contains a JJ
+      bool is_jj = false;
+      const auto& lumped_port_op = space_op.GetLumpedPortOp();
+      for (const auto& [idx, port] : lumped_port_op) {
+        if (port.GetType() == LumpedPortData::Type::JOSEPHSON) {
+          is_jj = true;
+          break;
+        }
+      }
       estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator, is_jj);
     }
+    
     // CUSTOM CONVERGENCE
-    // Add error indicators with JJ flag
-      // Check EPR convergence
+    // Check EPR convergence
     if (!indicator.HasConverged()) {
       continue; // Need more iterations 
     }

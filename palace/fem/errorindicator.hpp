@@ -30,7 +30,8 @@ protected:
   int consecutive_converged{0};
   int required_consecutive{3}; 
   double last_error{std::numeric_limits<double>::max()};
-  double rel_tol{1e-3};
+  double global_tol{1e-2};
+  double relative_tol{1e-3};
   double jj_weight{3.0};
 
 public:
