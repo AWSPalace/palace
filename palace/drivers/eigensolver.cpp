@@ -357,12 +357,16 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
       estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator, is_jj);
     }
     
-    // CUSTOM CONVERGENCE
-    // Check EPR convergence
+    // CUSTOM CONVERGENCE - COMPLETELY DISABLED
+    // Original code with convergence check:
+    // if (!indicator.HasConverged()) {
+    //   continue; // Need more iterations 
+    // }
+    
+    // MODIFIED: Always proceed with postprocessing regardless of convergence status
+    // This matches the original Palace behavior
     if (!indicator.HasConverged()) {
-      // continue; // Need more iterations 
-      // MODIFIED: Proceed with postprocessing even without convergence
-      Mpi::Warning("Warning: Proceeding with postprocessing despite not meeting convergence criteria\n");
+      Mpi::Warning("Warning: Postprocessing despite not meeting JJ convergence criteria (original Palace behavior)\n");
     }
 
     // Postprocess the mode.
@@ -386,6 +390,9 @@ void EigenSolver::Postprocess(const PostOperator &post_op,
                               double error_abs, int num_conv, double E_elec, double E_mag,
                               const ErrorIndicator *indicator) const
 {
+  // DEBUG: Print that postprocessing is starting
+  Mpi::Print("DEBUG: Main Postprocess function called for mode {} of {}\n", i+1, num_conv);
+
   // The internal GridFunctions for PostOperator have already been set from the E and B
   // solutions in the main loop over converged eigenvalues.
   const double E_cap = post_op.GetLumpedCapacitorEnergy(lumped_port_op);
@@ -434,6 +441,10 @@ struct EprIOData
 void EigenSolver::PostprocessEigen(int i, std::complex<double> omega, double error_bkwd,
                                    double error_abs, int num_conv) const
 {
+  // DEBUG: Print output path information
+  Mpi::Print("DEBUG: PostprocessEigen called, post_dir = '{}', root = {}\n", 
+             post_dir, root ? "true" : "false");
+
   // Dimensionalize the result and print in a nice table of frequencies and Q-factors. Save
   // to file if user has specified.
   const std::complex<double> f = {
