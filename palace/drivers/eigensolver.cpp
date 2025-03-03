@@ -374,6 +374,46 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
                 num_conv, E_elec, E_mag,
                 (i == iodata.solver.eigenmode.n - 1) ? &indicator : nullptr);
   }
+  // ADDED: Force postprocessing of the first eigenmode
+  if (num_conv > 0) {
+    Mpi::Print("\nFORCED OUTPUT: Generating output files for first eigenmode\n");
+    
+    // Prepare the first eigenmode for postprocessing
+    std::complex<double> omega = eigen->GetEigenvalue(0);
+    double error_bkwd = eigen->GetError(0, EigenvalueSolver::ErrorType::BACKWARD);
+    double error_abs = eigen->GetError(0, EigenvalueSolver::ErrorType::ABSOLUTE);
+    
+    if (!C) {
+      // Linear EVP has eigenvalue μ = -λ² = ω².
+      omega = std::sqrt(omega);
+    } else {
+      // Quadratic EVP solves for eigenvalue λ = iω.
+      omega /= 1i;
+    }
+    
+    // Compute fields
+    eigen->GetEigenvector(0, E);
+    Curl.Mult(E.Real(), B.Real());
+    Curl.Mult(E.Imag(), B.Imag());
+    B *= -1.0 / (1i * omega);
+    
+    // Set up PostOperator
+    post_op.SetEGridFunction(E);
+    post_op.SetBGridFunction(B);
+    post_op.UpdatePorts(space_op.GetLumpedPortOp(), omega.real());
+    const double E_elec = post_op.GetEFieldEnergy();
+    const double E_mag = post_op.GetHFieldEnergy();
+    
+    // Direct postprocessing calls
+    PostprocessEigen(0, omega, error_bkwd, error_abs, num_conv);
+    PostprocessPorts(post_op, space_op.GetLumpedPortOp(), 0);
+    PostprocessEPR(post_op, space_op.GetLumpedPortOp(), 0, omega, E_elec);
+    PostprocessDomains(post_op, "m", 0, 1, E_elec, E_mag, 0.0, 0.0);
+    PostprocessSurfaces(post_op, "m", 0, 1, E_elec, E_mag);
+    PostprocessProbes(post_op, "m", 0, 1);
+    PostprocessErrorIndicator(post_op, indicator, true);
+  }
+    
   return {indicator, space_op.GlobalTrueVSize()};
 }
 
