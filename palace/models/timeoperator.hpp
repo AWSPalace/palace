@@ -56,6 +56,9 @@ public:
 
   // Print ODE integrator statistics.
   void PrintStats();
+  
+  // Get the maximum stable time step
+  double GetMaxTimeStep() const;
 };
 
 }  // namespace palace
