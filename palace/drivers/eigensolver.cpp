@@ -346,9 +346,11 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
       bool is_jj = false;
       const auto& lumped_port_op = space_op.GetLumpedPortOp();
       for (const auto& [idx, port] : lumped_port_op) {
-        // Check if we have any Josephson junction ports
-        if (port.GetType() == LumpedPortData::Type::JOSEPHSON) {
+        // Check if we have any Josephson junction ports (which are modeled as lumped inductors)
+        // Consider any pure inductive lumped element (L > 0, R = 0, C = 0) as a Josephson junction
+        if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 0.0 && std::abs(port.C) <= 0.0) {
           is_jj = true;
+          Mpi::Print(" Detected Josephson junction at port {}\n", idx);
           break;
         }
       }
@@ -358,7 +360,9 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
     // CUSTOM CONVERGENCE
     // Check EPR convergence
     if (!indicator.HasConverged()) {
-      continue; // Need more iterations 
+      // continue; // Need more iterations 
+      // MODIFIED: Proceed with postprocessing even without convergence
+      Mpi::Warning("Warning: Proceeding with postprocessing despite not meeting convergence criteria\n");
     }
 
     // Postprocess the mode.
