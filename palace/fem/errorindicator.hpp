@@ -32,7 +32,7 @@ protected:
   double last_error{std::numeric_limits<double>::max()};
   double global_tol{1e-2};
   double relative_tol{1e-3};
-  double jj_weight{3.0};
+  double jj_weight{10.0};  // Significantly increased weight for JJ elements
 
 public:
   ErrorIndicator(Vector &&local) : local(std::move(local)), n(1)

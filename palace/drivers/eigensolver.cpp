@@ -344,9 +344,12 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
     {
       // Check if the current element/region contains a Josephson Junction
       bool is_jj = false;
+      
+      // Get port information
       const auto& lumped_port_op = space_op.GetLumpedPortOp();
+      
+      // Check for Josephson junctions
       for (const auto& [idx, port] : lumped_port_op) {
-        // Check if we have any Josephson junction ports (which are modeled as lumped inductors)
         // Consider any pure inductive lumped element (L > 0, R = 0, C = 0) as a Josephson junction
         if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 0.0 && std::abs(port.C) <= 0.0) {
           is_jj = true;
@@ -354,6 +357,9 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
           break;
         }
       }
+      
+      // Add indicator with the JJ weight (now 10.0) to focus refinement on JJ and surrounding regions
+      // The higher jj_weight in errorindicator.hpp ensures much finer meshing
       estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator, is_jj);
     }
     
