@@ -89,7 +89,7 @@ public:
   
   // CUSTOM CONVERGENCE
   // Compute electric field energy in this junction region
-  double ComputeElectricFieldEnergy(const mfem::Vector &field_mag) const;
+  double ComputeElectricFieldEnergy(const Vector &field_mag) const;
   Type GetType() const { return port_type; }
   
   bool ContainsElement(int elem_idx) const {

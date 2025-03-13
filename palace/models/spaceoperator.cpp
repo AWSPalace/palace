@@ -1050,7 +1050,7 @@ void SpaceOperator::GetRandomInitialVector(ComplexVector &v)
   linalg::SetSubVector(v, nd_dbc_tdof_lists.back(), 0.0);
 }
 
-double SpaceOperator::ComputeJunctionFieldEnergy(const mfem::Vector &field_mag) const
+double SpaceOperator::ComputeJunctionFieldEnergy(const Vector &field_mag) const
 {
   double total_energy = 0.0;
   
