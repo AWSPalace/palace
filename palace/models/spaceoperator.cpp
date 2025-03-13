@@ -1055,8 +1055,11 @@ double SpaceOperator::ComputeJunctionFieldEnergy(const mfem::Vector &field_mag) 
   double total_energy = 0.0;
   
   // Iterate through all lumped ports to find inductive ones (Josephson junctions)
-  for (const auto &[idx, port] : lumped_port_op.GetPorts())
+  for (auto it = lumped_port_op.begin(); it != lumped_port_op.end(); ++it)
   {
+    int idx = it->first;
+    const auto& port = it->second;
+    
     // Check if this port is a pure inductive lumped element (L > 0, R ≈ 0, C ≈ 0)
     // This represents a Josephson junction in the model
     if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 1e-10 && std::abs(port.C) <= 1e-10)
@@ -1068,7 +1071,7 @@ double SpaceOperator::ComputeJunctionFieldEnergy(const mfem::Vector &field_mag) 
       total_energy += energy;
       
       // Debug output
-      Mpi::Print(" Junction at port {}: Energy = {:.3e}\n", idx, energy);
+      Mpi::Print(" Junction at port %d: Energy = %.3e\n", idx, energy);
     }
   }
   

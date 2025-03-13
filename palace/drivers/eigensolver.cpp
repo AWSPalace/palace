@@ -333,12 +333,12 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
 
       if (is_junction_mode[i])
       {
-        Mpi::Print(" Mode {:d} identified as junction mode (energy = {:.3e})\n",
+        Mpi::Print(" Mode %d identified as junction mode (energy = %.3e)\n",
                   i + 1, junction_energies[i]);
       }
       else
       {
-        Mpi::Print(" Mode {:d} identified as non-junction mode (energy = {:.3e})\n",
+        Mpi::Print(" Mode %d identified as non-junction mode (energy = %.3e)\n",
                   i + 1, junction_energies[i]);
       }
     }
@@ -354,7 +354,7 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
     {
       if (!is_junction_mode[i])
       {
-        Mpi::Print(" Mode {:d} skipped (not a junction mode)\n", i + 1);
+        Mpi::Print(" Mode %d skipped (not a junction mode)\n", i + 1);
         continue;
       }
     }
@@ -405,12 +405,14 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
       {
         // Traditional method to check if mode contains a junction
         const auto& lumped_port_op = space_op.GetLumpedPortOp();
-        for (const auto& [idx, port] : lumped_port_op)
+        for (auto it = lumped_port_op.begin(); it != lumped_port_op.end(); ++it)
         {
+          int idx = it->first;
+          const auto& port = it->second;
           if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 0.0 && std::abs(port.C) <= 0.0)
           {
             is_jj = true;
-            Mpi::Print(" Detected Josephson junction at port {}\n", idx);
+            Mpi::Print(" Detected Josephson junction at port %d\n", idx);
             break;
           }
         }
@@ -426,7 +428,7 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
       // For junction modes, check convergence
       if (is_junction_mode[i] && !indicator.HasConverged())
       {
-        Mpi::Warning(" Junction mode {:d} has not converged, but postprocessing anyway\n", i + 1);
+        Mpi::Warning(" Junction mode %d has not converged, but postprocessing anyway\n", i + 1);
       }
     }
 
