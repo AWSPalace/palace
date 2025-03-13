@@ -303,62 +303,8 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
     eigen->RescaleEigenvectors(num_conv);
   }
   Mpi::Print("\n");
-  // CUSTOM CONVERGENCE - Pre-classify modes as JJ or non-JJ if needed
-  std::vector<bool> is_junction_mode(num_conv, false);
-  std::vector<double> junction_energies(num_conv, 0.0);
-
-  if (iodata.solver.eigenmode.junction_convergence)
-  {
-    // Compute junction energies for all modes first
-    for (int i = 0; i < num_conv; i++)
-    {
-      // Extract the eigenvector
-      ComplexVector mode_E(Curl.Width());
-      mode_E.UseDevice(true);
-      eigen->GetEigenvector(i, mode_E);
-
-      // Calculate field magnitude
-      Vector field_mag(mode_E.Size());
-      field_mag.UseDevice(true);
-      for (int k = 0; k < mode_E.Size(); k++)
-      {
-        double re = mode_E.Real()[k];
-        double im = mode_E.Imag()[k];
-        field_mag[k] = std::sqrt(re*re + im*im);
-      }
-
-      // Compute junction energy
-      junction_energies[i] = space_op.ComputeJunctionFieldEnergy(field_mag);
-      is_junction_mode[i] = (junction_energies[i] > 1e-10); // Energy threshold for junction modes
-
-      if (is_junction_mode[i])
-      {
-        Mpi::Print(" Mode {:d} identified as junction mode (energy = {:.3e})\n",
-                  i + 1, junction_energies[i]);
-      }
-      else
-      {
-        Mpi::Print(" Mode {:d} identified as non-junction mode (energy = {:.3e})\n",
-                  i + 1, junction_energies[i]);
-      }
-    }
-  }
-  
-  // Count of processed modes
-  int processed_modes = 0;
-  
   for (int i = 0; i < num_conv; i++)
   {
-    // Skip non-junction modes if junction_convergence is enabled and return_all_modes is false
-    if (iodata.solver.eigenmode.junction_convergence && !iodata.solver.eigenmode.return_all_modes)
-    {
-      if (!is_junction_mode[i])
-      {
-        Mpi::Print(" Mode {:d} skipped (not a junction mode)\n", i + 1);
-        continue;
-      }
-    }
-    
     // Get the eigenvalue and relative error.
     std::complex<double> omega = eigen->GetEigenvalue(i);
     double error_bkwd = eigen->GetError(i, EigenvalueSolver::ErrorType::BACKWARD);
@@ -392,75 +338,47 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
     const double E_elec = post_op.GetEFieldEnergy();
     const double E_mag = post_op.GetHFieldEnergy();
 
+    // CUSTOM CONVERGENCE MODIFY
     // Calculate and record the error indicators.
-    if (processed_modes < iodata.solver.eigenmode.n)
+    if (i < iodata.solver.eigenmode.n)
     {
-      // If we already pre-classified modes, use that information
+      // Check if the current element/region contains a Josephson Junction
       bool is_jj = false;
-      if (iodata.solver.eigenmode.junction_convergence)
-      {
-        is_jj = is_junction_mode[i];
-      }
-      else
-      {
-        // Traditional method to check if mode contains a junction
-        const auto& lumped_port_op = space_op.GetLumpedPortOp();
-        for (const auto& [idx, port] : lumped_port_op)
-        {
-          if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 0.0 && std::abs(port.C) <= 0.0)
-          {
-            is_jj = true;
-            Mpi::Print(" Detected Josephson junction at port {}\n", idx);
-            break;
-          }
+      
+      // Get port information
+      const auto& lumped_port_op = space_op.GetLumpedPortOp();
+      
+      // Check for Josephson junctions
+      for (const auto& [idx, port] : lumped_port_op) {
+        // Consider any pure inductive lumped element (L > 0, R = 0, C = 0) as a Josephson junction
+        if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 0.0 && std::abs(port.C) <= 0.0) {
+          is_jj = true;
+          Mpi::Print(" Detected Josephson junction at port {}\n", idx);
+          break;
         }
       }
       
-      // Add indicator with JJ weight if needed
+      // Add indicator with the JJ weight (now 10.0) to focus refinement on JJ and surrounding regions
+      // The higher jj_weight in errorindicator.hpp ensures much finer meshing
       estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator, is_jj);
     }
     
-    // If using junction convergence, check if mode has converged
-    if (iodata.solver.eigenmode.junction_convergence)
-    {
-      // For junction modes, check convergence
-      if (is_junction_mode[i] && !indicator.HasConverged())
-      {
-        Mpi::Warning(" Junction mode {:d} has not converged, but postprocessing anyway\n", i + 1);
-      }
+    // CUSTOM CONVERGENCE - COMPLETELY DISABLED
+    // Original code with convergence check:
+    // if (!indicator.HasConverged()) {
+    //   continue; // Need more iterations 
+    // }
+    
+    // MODIFIED: Always proceed with postprocessing regardless of convergence status
+    // This matches the original Palace behavior
+    if (!indicator.HasConverged()) {
+      Mpi::Warning("Warning: Postprocessing despite not meeting JJ convergence criteria (original Palace behavior)\n");
     }
 
     // Postprocess the mode.
-    Postprocess(post_op, space_op.GetLumpedPortOp(), processed_modes, omega, error_bkwd, error_abs,
+    Postprocess(post_op, space_op.GetLumpedPortOp(), i, omega, error_bkwd, error_abs,
                 num_conv, E_elec, E_mag,
-                (processed_modes == iodata.solver.eigenmode.n - 1) ? &indicator : nullptr);
-                
-    // Store junction energy for classification
-    if (processed_modes == 0)
-    {
-      double j_energy = 0.0;
-      if (iodata.solver.eigenmode.junction_convergence)
-      {
-        j_energy = junction_energies[i];
-      }
-      else
-      {
-        // Calculate field magnitude
-        Vector field_mag(E.Size());
-        field_mag.UseDevice(true);
-        for (int k = 0; k < E.Size(); k++)
-        {
-          double re = E.Real()[k];
-          double im = E.Imag()[k];
-          field_mag[k] = std::sqrt(re*re + im*im);
-        }
-        j_energy = space_op.ComputeJunctionFieldEnergy(field_mag);
-      }
-      indicator.SetJEnergy(j_energy);
-    }
-    
-    // Increment processed modes counter
-    processed_modes++;
+                (i == iodata.solver.eigenmode.n - 1) ? &indicator : nullptr);
   }
   // ADDED: Force postprocessing of the first eigenmode
   if (num_conv > 0) {

@@ -721,12 +721,6 @@ public:
   // Orthogonalize basis vectors using a mass matrix inner product, instead of generating
   // using a standard ℓ² (Euclidean) norm.
   bool mass_orthog = false;
-  
-  // Custom convergence parameters for junction modes
-  double junction_tol = 0.001;         // 0.1% tolerance for junction field energy change
-  int required_passes = 3;             // Required consecutive passes below tolerance
-  bool junction_convergence = true;    // Enable junction convergence check
-  bool return_all_modes = true;        // Return both junction and non-junction modes
 
   // Eigenvalue solver type.
   using Type = WavePortData::EigenSolverType;

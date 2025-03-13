@@ -88,8 +88,6 @@ public:
   std::complex<double> GetVoltage(GridFunction &E) const;
   
   // CUSTOM CONVERGENCE
-  // Compute electric field energy in this junction region
-  double ComputeElectricFieldEnergy(const Vector &field_mag) const;
   Type GetType() const { return port_type; }
   
   bool ContainsElement(int elem_idx) const {

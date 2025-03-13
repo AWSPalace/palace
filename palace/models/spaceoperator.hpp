@@ -170,11 +170,6 @@ public:
   std::unique_ptr<Operator> GetInnerProductMatrix(double a0, double a2,
                                                   const ComplexOperator *K,
                                                   const ComplexOperator *M);
-                                                  
-  // Compute the energy stored in the Josephson junction field
-  // Uses the electric field magnitude and identifies junctions via lumped ports
-  // Returns the total energy concentration in the junction regions
-  double ComputeJunctionFieldEnergy(const Vector &field_mag) const;
 
   // Construct the matrix for frequency or time domain linear system preconditioning. If it
   // is real-valued (Mr > 0, Mi < 0, |Mr + Mi| is done on the material property coefficient,
