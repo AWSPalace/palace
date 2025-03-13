@@ -128,7 +128,6 @@ public:
   auto rbegin() const { return ports.rbegin(); }
   auto rend() const { return ports.rend(); }
   auto Size() const { return ports.size(); }
-  const auto& GetPorts() const { return ports; }
 
   // Returns array of lumped port attributes.
   mfem::Array<int> GetAttrList() const;
