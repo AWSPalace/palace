@@ -306,6 +306,39 @@ std::complex<double> LumpedPortData::GetVoltage(GridFunction &E) const
   return dot;
 }
 
+double LumpedPortData::ComputeElectricFieldEnergy(const Vector &field_mag) const
+{
+  // Create a work vector to sum field energy contributions in this junction
+  Vector local_energy(field_mag.Size());
+  local_energy = 0.0;
+  
+  // Loop through all elements in this port
+  for (const auto& elem : elems)
+  {
+    // Get all elements that make up this port
+    const auto& elem_indices = elem->GetElementIndices();
+    
+    // For each element, add its field energy contribution
+    for (int i = 0; i < elem_indices.Size(); i++)
+    {
+      int elem_idx = elem_indices[i];
+      
+      // Here we would typically integrate E·E over the element volume
+      // For simplicity, we just use the field magnitude at the element's indices
+      // In a real implementation, you would use the field value, element volume, etc.
+      if (elem_idx >= 0 && elem_idx < field_mag.Size())
+      {
+        local_energy[elem_idx] = field_mag[elem_idx] * field_mag[elem_idx];
+      }
+    }
+  }
+  
+  // Sum total energy in this junction (could be weighted by volume in real implementation)
+  double total_energy = local_energy.Sum();
+  
+  return total_energy;
+}
+
 LumpedPortOperator::LumpedPortOperator(const IoData &iodata, const MaterialOperator &mat_op,
                                        const mfem::ParMesh &mesh)
 {

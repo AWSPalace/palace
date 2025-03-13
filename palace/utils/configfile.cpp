@@ -1571,6 +1571,10 @@ void EigenSolverData::SetUp(json &solver)
   init_v0 = eigenmode->value("StartVector", init_v0);
   init_v0_const = eigenmode->value("StartVectorConstant", init_v0_const);
   mass_orthog = eigenmode->value("MassOrthogonal", mass_orthog);
+  junction_tol = eigenmode->value("JunctionTol", junction_tol);
+  required_passes = eigenmode->value("JunctionPasses", required_passes);
+  junction_convergence = eigenmode->value("JunctionConvergence", junction_convergence);
+  return_all_modes = eigenmode->value("ReturnAllModes", return_all_modes);
 
   // Cleanup
   eigenmode->erase("Target");
@@ -1585,6 +1589,10 @@ void EigenSolverData::SetUp(json &solver)
   eigenmode->erase("StartVector");
   eigenmode->erase("StartVectorConstant");
   eigenmode->erase("MassOrthogonal");
+  eigenmode->erase("JunctionTol");
+  eigenmode->erase("JunctionPasses");
+  eigenmode->erase("JunctionConvergence");
+  eigenmode->erase("ReturnAllModes");
   MFEM_VERIFY(eigenmode->empty(),
               "Found an unsupported configuration file keyword under \"Eigenmode\"!\n"
                   << eigenmode->dump(2));
@@ -1604,6 +1612,10 @@ void EigenSolverData::SetUp(json &solver)
     std::cout << "StartVector: " << init_v0 << '\n';
     std::cout << "StartVectorConstant: " << init_v0_const << '\n';
     std::cout << "MassOrthogonal: " << mass_orthog << '\n';
+    std::cout << "JunctionTol: " << junction_tol << '\n';
+    std::cout << "JunctionPasses: " << required_passes << '\n';
+    std::cout << "JunctionConvergence: " << junction_convergence << '\n';
+    std::cout << "ReturnAllModes: " << return_all_modes << '\n';
   }
 }
 

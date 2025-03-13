@@ -33,6 +33,7 @@ protected:
   double global_tol{1e-2};
   double relative_tol{1e-3};
   double jj_weight{10.0};  // Significantly increased weight for JJ elements
+  double j_energy{0.0};    // Stores energy in junction for classification
 
 public:
   ErrorIndicator(Vector &&local) : local(std::move(local)), n(1)
@@ -82,6 +83,12 @@ public:
 
   // Modify signature of existing AddIndicator:
   void AddIndicator(const Vector &indicator, bool is_jj = false);
+  
+  // Set junction energy
+  void SetJEnergy(double energy) { j_energy = energy; }
+  
+  // Get junction energy
+  double GetJEnergy() const { return j_energy; }
 };
 
 }  // namespace palace
