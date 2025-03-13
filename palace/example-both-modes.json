@@ -164,9 +164,7 @@
       "Target": 5,
       "Save": 3,
       "JunctionConvergence": true,
-      "ReturnAllModes": true,
-      "JunctionTol": 0.001,
-      "JunctionPasses": 3
+      "ReturnAllModes": true
     },
     "Linear": {
       "Type": "SuperLU",
