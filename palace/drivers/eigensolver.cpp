@@ -358,15 +358,49 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
         }
       }
       
+      // Check if the current element/region contains a Josephson Junction
+      bool has_jj = false;
+      
+      // Get port information
+      const auto& lp_op = space_op.GetLumpedPortOp();
+      
+      // Check for Josephson junctions
+      for (const auto& [idx, port] : lp_op) {
+        // Consider any pure inductive lumped element (L > 0, R = 0, C = 0) as a Josephson junction
+        if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 0.0 && std::abs(port.C) <= 0.0) {
+          has_jj = true;
+          Mpi::Print(" Detected Josephson junction at port {}\n", idx);
+          break;
+        }
+      }
+      
       // Add indicator with the JJ weight (now 10.0) to focus refinement on JJ and surrounding regions
       // The higher jj_weight in errorindicator.hpp ensures much finer meshing
-      estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator, is_jj);
+      estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator, has_jj);
     }
     
     // Mode type classification and convergence checking
     // For JJ modes, apply convergence checking if enabled
     // For non-JJ modes, always process them
-    if (is_jj) {
+    bool mode_is_jj = false;
+      
+    // Check if the current element/region contains a Josephson Junction
+    const auto& lumped_port_op = space_op.GetLumpedPortOp();
+      
+    // Check for Josephson junctions
+    for (const auto& [idx, port] : lumped_port_op) {
+      // Consider any pure inductive lumped element (L > 0, R = 0, C = 0) as a Josephson junction
+      if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 0.0 && std::abs(port.C) <= 0.0) {
+        // Get participation ratio to check if this is a JJ mode
+        double pj = post_op.GetInductorParticipation(lumped_port_op, idx, E_elec);
+        if (std::abs(pj) > 0.01) {
+          mode_is_jj = true;
+          break;
+        }
+      }
+    }
+      
+    if (mode_is_jj) {
       Mpi::Print(" Mode {:d} is a JJ mode\n", i+1);
       
       // Apply convergence check only to JJ modes if junction convergence is enabled
@@ -430,6 +464,7 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
           double pj = post_op.GetInductorParticipation(lumped_port_op, idx, post_op.GetEFieldEnergy());
           if (std::abs(pj) > 0.01) {  // This is just for reporting, not filtering
             is_jj = true;
+            Mpi::Print(" Port {:d} participation: {:.6e}\n", idx, pj);
             break;
           }
         }
