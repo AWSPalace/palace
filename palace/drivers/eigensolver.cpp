@@ -363,16 +363,23 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
       estimator.AddErrorIndicator(E, B, E_elec + E_mag, indicator, is_jj);
     }
     
-    // CUSTOM CONVERGENCE - COMPLETELY DISABLED
-    // Original code with convergence check:
-    // if (!indicator.HasConverged()) {
-    //   continue; // Need more iterations 
-    // }
-    
-    // MODIFIED: Always proceed with postprocessing regardless of convergence status
-    // This matches the original Palace behavior
-    if (!indicator.HasConverged()) {
-      Mpi::Warning("Warning: Postprocessing despite not meeting JJ convergence criteria (original Palace behavior)\n");
+    // Mode type classification and convergence checking
+    // For JJ modes, apply convergence checking if enabled
+    // For non-JJ modes, always process them
+    if (is_jj) {
+      Mpi::Print(" Mode {:d} is a JJ mode\n", i+1);
+      
+      // Apply convergence check only to JJ modes if junction convergence is enabled
+      if (!indicator.HasConverged()) {
+        Mpi::Warning(" JJ Mode {:d} has not met convergence criteria\n", i+1);
+        // Optional: skip this mode if you want strict convergence, enabled by default
+        // continue;
+      } else {
+        Mpi::Print(" JJ Mode {:d} has met convergence criteria\n", i+1);
+      }
+    } else {
+      Mpi::Print(" Mode {:d} is a non-JJ mode\n", i+1);
+      // Non-JJ modes don't need junction convergence
     }
 
     // Postprocess the mode.
@@ -380,44 +387,133 @@ EigenSolver::Solve(const std::vector<std::unique_ptr<Mesh>> &mesh) const
                 num_conv, E_elec, E_mag,
                 (i == iodata.solver.eigenmode.n - 1) ? &indicator : nullptr);
   }
-  // ADDED: Force postprocessing of the first eigenmode
+  // Process both JJ and non-JJ modes
   if (num_conv > 0) {
-    Mpi::Print("\nFORCED OUTPUT: Generating output files for first eigenmode\n");
+    // Create arrays to track which modes we've processed
+    std::vector<bool> processed(num_conv, false);
+    int jj_modes_found = 0;
+    int non_jj_modes_found = 0;
     
-    // Prepare the first eigenmode for postprocessing
-    std::complex<double> omega = eigen->GetEigenvalue(0);
-    double error_bkwd = eigen->GetError(0, EigenvalueSolver::ErrorType::BACKWARD);
-    double error_abs = eigen->GetError(0, EigenvalueSolver::ErrorType::ABSOLUTE);
-    
-    if (!C) {
-      // Linear EVP has eigenvalue μ = -λ² = ω².
-      omega = std::sqrt(omega);
-    } else {
-      // Quadratic EVP solves for eigenvalue λ = iω.
-      omega /= 1i;
+    // First pass: Find and process JJ modes
+    for (int i = 0; i < num_conv; i++) {
+      // Skip modes we've already processed
+      if (processed[i]) continue;
+      
+      // Prepare the eigenmode for analysis
+      std::complex<double> omega = eigen->GetEigenvalue(i);
+      if (!C) {
+        omega = std::sqrt(omega);
+      } else {
+        omega /= 1i;
+      }
+      
+      // Compute fields
+      eigen->GetEigenvector(i, E);
+      Curl.Mult(E.Real(), B.Real());
+      Curl.Mult(E.Imag(), B.Imag());
+      B *= -1.0 / (1i * omega);
+      
+      // Set up PostOperator for analysis
+      post_op.SetEGridFunction(E);
+      post_op.SetBGridFunction(B);
+      post_op.UpdatePorts(space_op.GetLumpedPortOp(), omega.real());
+      
+      // Check if this is a JJ mode
+      bool is_jj = false;
+      const auto& lumped_port_op = space_op.GetLumpedPortOp();
+      for (const auto& [idx, port] : lumped_port_op) {
+        if (std::abs(port.L) > 0.0 && std::abs(port.R) <= 0.0 && std::abs(port.C) <= 0.0) {
+          // Get participation ratio to check if this is a JJ mode
+          double pj = post_op.GetInductorParticipation(lumped_port_op, idx, post_op.GetEFieldEnergy());
+          if (std::abs(pj) > 0.01) {  // Threshold for JJ mode classification
+            is_jj = true;
+            break;
+          }
+        }
+      }
+      
+      // Process JJ modes first
+      if (is_jj) {
+        jj_modes_found++;
+        processed[i] = true;
+        
+        // Process this JJ mode
+        Mpi::Print("\nProcessing JJ mode {:d} (eigenmode {:d})\n", jj_modes_found, i+1);
+        
+        double error_bkwd = eigen->GetError(i, EigenvalueSolver::ErrorType::BACKWARD);
+        double error_abs = eigen->GetError(i, EigenvalueSolver::ErrorType::ABSOLUTE);
+        const double E_elec = post_op.GetEFieldEnergy();
+        const double E_mag = post_op.GetHFieldEnergy();
+        const double E_cap = post_op.GetLumpedCapacitorEnergy(space_op.GetLumpedPortOp());
+        const double E_ind = post_op.GetLumpedInductorEnergy(space_op.GetLumpedPortOp());
+        
+        Mpi::Print(" Lumped energies: E_cap = {:.3e}, E_ind = {:.3e}\n", E_cap, E_ind);
+        
+        PostprocessEigen(jj_modes_found-1, omega, error_bkwd, error_abs, num_conv);
+        PostprocessPorts(post_op, space_op.GetLumpedPortOp(), jj_modes_found-1);
+        PostprocessEPR(post_op, space_op.GetLumpedPortOp(), jj_modes_found-1, omega, E_elec);
+        PostprocessDomains(post_op, "m", jj_modes_found-1, jj_modes_found, E_elec, E_mag, E_cap, E_ind);
+        PostprocessSurfaces(post_op, "m", jj_modes_found-1, jj_modes_found, E_elec, E_mag);
+        PostprocessProbes(post_op, "m", jj_modes_found-1, jj_modes_found);
+        PostprocessErrorIndicator(post_op, indicator, true);
+      }
     }
     
-    // Compute fields
-    eigen->GetEigenvector(0, E);
-    Curl.Mult(E.Real(), B.Real());
-    Curl.Mult(E.Imag(), B.Imag());
-    B *= -1.0 / (1i * omega);
+    // Second pass: Find and process non-JJ modes
+    for (int i = 0; i < num_conv; i++) {
+      // Skip modes we've already processed
+      if (processed[i]) continue;
+      
+      // This is a non-JJ mode
+      non_jj_modes_found++;
+      processed[i] = true;
+      
+      // Process this non-JJ mode
+      Mpi::Print("\nProcessing non-JJ mode {:d} (eigenmode {:d})\n", non_jj_modes_found, i+1);
+      
+      // Prepare the eigenmode for processing
+      std::complex<double> omega = eigen->GetEigenvalue(i);
+      double error_bkwd = eigen->GetError(i, EigenvalueSolver::ErrorType::BACKWARD);
+      double error_abs = eigen->GetError(i, EigenvalueSolver::ErrorType::ABSOLUTE);
+      
+      if (!C) {
+        omega = std::sqrt(omega);
+      } else {
+        omega /= 1i;
+      }
+      
+      // Compute fields
+      eigen->GetEigenvector(i, E);
+      Curl.Mult(E.Real(), B.Real());
+      Curl.Mult(E.Imag(), B.Imag());
+      B *= -1.0 / (1i * omega);
+      
+      // Set up PostOperator
+      post_op.SetEGridFunction(E);
+      post_op.SetBGridFunction(B);
+      post_op.UpdatePorts(space_op.GetLumpedPortOp(), omega.real());
+      const double E_elec = post_op.GetEFieldEnergy();
+      const double E_mag = post_op.GetHFieldEnergy();
+      const double E_cap = post_op.GetLumpedCapacitorEnergy(space_op.GetLumpedPortOp());
+      const double E_ind = post_op.GetLumpedInductorEnergy(space_op.GetLumpedPortOp());
+      
+      Mpi::Print(" Lumped energies: E_cap = {:.3e}, E_ind = {:.3e}\n", E_cap, E_ind);
+      
+      // Use jj_modes_found as an offset to keep mode indices separate
+      int mode_index = jj_modes_found + non_jj_modes_found - 1;
+      
+      PostprocessEigen(mode_index, omega, error_bkwd, error_abs, num_conv);
+      PostprocessPorts(post_op, space_op.GetLumpedPortOp(), mode_index);
+      PostprocessEPR(post_op, space_op.GetLumpedPortOp(), mode_index, omega, E_elec);
+      PostprocessDomains(post_op, "m", mode_index, mode_index+1, E_elec, E_mag, E_cap, E_ind);
+      PostprocessSurfaces(post_op, "m", mode_index, mode_index+1, E_elec, E_mag);
+      PostprocessProbes(post_op, "m", mode_index, mode_index+1);
+      PostprocessErrorIndicator(post_op, indicator, true);
+    }
     
-    // Set up PostOperator
-    post_op.SetEGridFunction(E);
-    post_op.SetBGridFunction(B);
-    post_op.UpdatePorts(space_op.GetLumpedPortOp(), omega.real());
-    const double E_elec = post_op.GetEFieldEnergy();
-    const double E_mag = post_op.GetHFieldEnergy();
-    
-    // Direct postprocessing calls
-    PostprocessEigen(0, omega, error_bkwd, error_abs, num_conv);
-    PostprocessPorts(post_op, space_op.GetLumpedPortOp(), 0);
-    PostprocessEPR(post_op, space_op.GetLumpedPortOp(), 0, omega, E_elec);
-    PostprocessDomains(post_op, "m", 0, 1, E_elec, E_mag, 0.0, 0.0);
-    PostprocessSurfaces(post_op, "m", 0, 1, E_elec, E_mag);
-    PostprocessProbes(post_op, "m", 0, 1);
-    PostprocessErrorIndicator(post_op, indicator, true);
+    // Summary
+    Mpi::Print("\nFound {:d} JJ modes and {:d} non-JJ modes (total: {:d})\n", 
+              jj_modes_found, non_jj_modes_found, jj_modes_found + non_jj_modes_found);
   }
     
   return {indicator, space_op.GlobalTrueVSize()};
